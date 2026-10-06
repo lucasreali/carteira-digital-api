@@ -90,6 +90,19 @@ class RegisterUserControllerTest {
     }
 
     @Test
+    void rejectsPasswordAboveBcryptByteLimitEvenWhenWithinCharacterLimit() throws Exception {
+        var password = "é".repeat(40); // 40 chars, 80 UTF-8 bytes
+        var body = "{\"name\":\"Ana\",\"email\":\"ana@example.com\",\"password\":\"" + password + "\"}";
+
+        var result = postUsers(body);
+
+        result.andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.errors.password").isNotEmpty());
+        verifyNoInteractions(useCase);
+    }
+
+    @Test
     void returnsConflictProblemWhenEmailAlreadyRegistered() throws Exception {
         when(useCase.register(any())).thenThrow(new EmailAlreadyRegisteredException());
 
