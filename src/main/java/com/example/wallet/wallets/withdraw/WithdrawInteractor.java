@@ -2,6 +2,7 @@ package com.example.wallet.wallets.withdraw;
 
 import com.example.wallet.wallets.domain.Money;
 import com.example.wallet.wallets.domain.Transaction;
+import com.example.wallet.wallets.domain.WalletNotFoundException;
 import com.example.wallet.wallets.domain.WalletRepository;
 import java.time.Clock;
 import java.time.Instant;
@@ -18,7 +19,7 @@ public class WithdrawInteractor implements WithdrawUseCase {
 
     @Override
     public Transaction withdraw(WithdrawCommand command) {
-        var wallet = wallets.findById(command.walletId()).orElseThrow();
+        var wallet = wallets.findById(command.walletId()).orElseThrow(() -> new WalletNotFoundException(command.walletId()));
         var transaction = wallet.withdraw(Money.of(command.amount()), Instant.now(clock));
         wallets.save(wallet);
         return transaction;
