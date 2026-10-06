@@ -1,3 +1,9 @@
 package com.example.wallet.users.login;
 
-public record LoginCommand(String email, String password) {}
+public record LoginCommand(String email, String password) {
+
+    @Override
+    public String toString() {
+        return "LoginCommand[email=" + email + ", password=***]";
+    }
+}

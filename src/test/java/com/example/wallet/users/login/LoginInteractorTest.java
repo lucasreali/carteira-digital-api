@@ -60,6 +60,14 @@ class LoginInteractorTest {
     }
 
     @Test
+    void rejectsUnknownEmailEvenWhenPasswordMatchesTheDummyHash() {
+        Throwable thrown = catchThrowable(
+                () -> interactor.login(new LoginCommand("nobody@example.com", "dummy-password-for-timing")));
+
+        assertThat(thrown).isInstanceOf(InvalidCredentialsException.class);
+    }
+
+    @Test
     void rejectsMalformedEmailAsInvalidCredentialsInsteadOfRevealingTheFormatError() {
         Throwable thrown = catchThrowable(() -> interactor.login(new LoginCommand("not-an-email", "s3cret-password")));
 
