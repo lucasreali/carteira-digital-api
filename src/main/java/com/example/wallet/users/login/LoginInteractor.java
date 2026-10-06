@@ -21,6 +21,9 @@ public class LoginInteractor implements LoginUseCase {
     @Override
     public AccessToken login(LoginCommand command) {
         User user = users.findByEmail(new Email(command.email())).orElseThrow(InvalidCredentialsException::new);
+        if (!passwordHasher.matches(command.password(), user.passwordHash())) {
+            throw new InvalidCredentialsException();
+        }
         return tokenIssuer.issueFor(user);
     }
 }
