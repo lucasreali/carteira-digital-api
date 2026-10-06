@@ -2,9 +2,11 @@ package com.example.wallet.wallets.withdraw;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -16,6 +18,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -63,5 +67,16 @@ class WithdrawControllerTest {
                 .andExpect(jsonPath("$.counterpartyWalletId").isEmpty())
                 .andExpect(jsonPath("$.occurredAt").value("2026-10-05T12:00:00Z"));
         verify(useCase).withdraw(new WithdrawCommand(walletId, userId, new BigDecimal("30.00")));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"amount\":null}", "{\"amount\":\"-5.00\"}", "{\"amount\":0}"})
+    void rejectsMissingOrNonPositiveAmount(String body) throws Exception {
+        var result = postWithdrawal(body);
+
+        result.andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.errors.amount").isNotEmpty());
+        verifyNoInteractions(useCase);
     }
 }
