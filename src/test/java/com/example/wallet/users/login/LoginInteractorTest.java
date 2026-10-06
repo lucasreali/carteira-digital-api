@@ -59,6 +59,14 @@ class LoginInteractorTest {
         assertThat(hasher.checkedHashes).as("password check runs anyway to equalize timing").hasSize(1);
     }
 
+    @Test
+    void rejectsMalformedEmailAsInvalidCredentialsInsteadOfRevealingTheFormatError() {
+        Throwable thrown = catchThrowable(() -> interactor.login(new LoginCommand("not-an-email", "s3cret-password")));
+
+        assertThat(thrown).isInstanceOf(InvalidCredentialsException.class);
+        assertThat(hasher.checkedHashes).as("password check runs anyway to equalize timing").hasSize(1);
+    }
+
     private static final class InMemoryUserRepository implements UserRepository {
         private final Map<Email, User> byEmail = new HashMap<>();
 
