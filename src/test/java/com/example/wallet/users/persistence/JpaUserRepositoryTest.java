@@ -29,4 +29,15 @@ class JpaUserRepositoryTest {
 
         assertThat(repository.findByEmail(new Email("ALICE@example.com"))).contains(user);
     }
+
+    @Test
+    void existsByEmailReflectsSavedUsers() {
+        repository.save(User.register("Alice", new Email("alice@example.com"), "$2a$10$hash"));
+
+        boolean registered = repository.existsByEmail(new Email("alice@example.com"));
+        boolean unknown = repository.existsByEmail(new Email("bob@example.com"));
+
+        assertThat(registered).isTrue();
+        assertThat(unknown).isFalse();
+    }
 }
