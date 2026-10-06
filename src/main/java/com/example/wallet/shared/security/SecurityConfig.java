@@ -52,6 +52,12 @@ public class SecurityConfig {
     }
 
     private static SecretKey secretKey(JwtProperties properties) {
-        return new SecretKeySpec(properties.jwtSecret().getBytes(UTF_8), "HmacSHA256");
+        byte[] secret = properties.jwtSecret() == null ? new byte[0] : properties.jwtSecret().getBytes(UTF_8);
+        if (secret.length < 32) {
+            throw new IllegalStateException(
+                    "wallet.security.jwt-secret (WALLET_JWT_SECRET) must be at least 32 bytes for HS256, got "
+                            + secret.length);
+        }
+        return new SecretKeySpec(secret, "HmacSHA256");
     }
 }
