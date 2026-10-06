@@ -3,6 +3,7 @@ package com.example.wallet.wallets.withdraw;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
+import com.example.wallet.wallets.domain.InsufficientFundsException;
 import com.example.wallet.wallets.domain.Money;
 import com.example.wallet.wallets.domain.TransactionType;
 import com.example.wallet.wallets.domain.Wallet;
@@ -37,6 +38,27 @@ class WithdrawInteractorTest {
         assertThat(transaction.occurredAt()).isEqualTo(NOW);
         assertThat(wallets.findById(wallet.id()).orElseThrow().balance()).isEqualTo(Money.of("70.00"));
         assertThat(wallets.savedTransactions).containsExactly(transaction);
+    }
+
+    @Test
+    void allowsWithdrawingTheWholeBalance() {
+        var command = new WithdrawCommand(wallet.id(), ownerId, new BigDecimal("100.00"));
+
+        var transaction = withdraw.withdraw(command);
+
+        assertThat(transaction.balanceAfter()).isEqualTo(Money.zero());
+        assertThat(wallets.findById(wallet.id()).orElseThrow().balance()).isEqualTo(Money.zero());
+    }
+
+    @Test
+    void rejectsWithdrawalAboveBalanceWithoutSaving() {
+        var command = new WithdrawCommand(wallet.id(), ownerId, new BigDecimal("100.01"));
+
+        var thrown = catchThrowable(() -> withdraw.withdraw(command));
+
+        assertThat(thrown).isInstanceOf(InsufficientFundsException.class);
+        assertThat(wallets.saveCalls).isZero();
+        assertThat(wallets.savedTransactions).isEmpty();
     }
 
     @Test
