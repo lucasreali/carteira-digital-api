@@ -17,7 +17,7 @@ public class JpaUserRepository implements UserRepository {
 
     @Override
     public boolean existsByEmail(Email email) {
-        throw new UnsupportedOperationException();
+        return users.existsByEmail(email.value());
     }
 
     @Override
