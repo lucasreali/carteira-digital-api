@@ -26,13 +26,16 @@ class RegisterUserInteractorTest {
     }
 
     static class PrefixPasswordHasher implements PasswordHasher {
-        @Override public String hash(String raw) { return "hashed:" + raw; }
+        int hashCalls;
+
+        @Override public String hash(String raw) { hashCalls++; return "hashed:" + raw; }
 
         @Override public boolean matches(String raw, String hash) { return hash.equals(hash(raw)); }
     }
 
     private final InMemoryUserRepository users = new InMemoryUserRepository();
-    private final RegisterUserInteractor interactor = new RegisterUserInteractor(users, new PrefixPasswordHasher());
+    private final PrefixPasswordHasher hasher = new PrefixPasswordHasher();
+    private final RegisterUserInteractor interactor = new RegisterUserInteractor(users, hasher);
 
     @Test
     void registersUserWithNormalizedEmailAndHashedPassword() {
@@ -51,10 +54,12 @@ class RegisterUserInteractorTest {
     void rejectsEmailAlreadyRegisteredRegardlessOfCase() {
         User existing = interactor.register(new RegisterUserCommand("Ana", "ana@example.com", "s3cret-pass"));
         var duplicate = new RegisterUserCommand("Other", "ANA@example.com", "another-pass");
+        hasher.hashCalls = 0;
 
         var thrown = catchThrowable(() -> interactor.register(duplicate));
 
         assertThat(thrown).isInstanceOf(EmailAlreadyRegisteredException.class);
         assertThat(users.users.values()).containsExactly(existing);
+        assertThat(hasher.hashCalls).isZero();
     }
 }
