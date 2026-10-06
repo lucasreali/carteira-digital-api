@@ -55,6 +55,15 @@ class MoneyTest {
     }
 
     @Test
+    void rejectsAmountsThatDoNotFitNineteenDigits() {
+        assertThat(Money.of("99999999999999999.99").value()).isEqualByComparingTo("99999999999999999.99");
+        assertThatThrownBy(() -> Money.of("100000000000000000"))
+                .isInstanceOf(InvalidAmountException.class)
+                .hasMessageContaining("too large");
+        assertThatThrownBy(() -> Money.of("1e1000000000")).isInstanceOf(InvalidAmountException.class);
+    }
+
+    @Test
     void rejectsMalformedText() {
         assertThatThrownBy(() -> Money.of("ten")).isInstanceOf(InvalidAmountException.class);
     }
