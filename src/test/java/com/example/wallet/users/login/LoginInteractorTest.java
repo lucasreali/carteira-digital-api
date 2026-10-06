@@ -48,6 +48,17 @@ class LoginInteractorTest {
         assertThat(thrown).isInstanceOf(InvalidCredentialsException.class);
     }
 
+    @Test
+    void rejectsUnknownEmailWithSameErrorAfterStillCheckingAPassword() {
+        Throwable thrown = catchThrowable(
+                () -> interactor.login(new LoginCommand("nobody@example.com", "s3cret-password")));
+
+        assertThat(thrown)
+                .isInstanceOf(InvalidCredentialsException.class)
+                .hasMessage(new InvalidCredentialsException().getMessage());
+        assertThat(hasher.checkedHashes).as("password check runs anyway to equalize timing").hasSize(1);
+    }
+
     private static final class InMemoryUserRepository implements UserRepository {
         private final Map<Email, User> byEmail = new HashMap<>();
 
