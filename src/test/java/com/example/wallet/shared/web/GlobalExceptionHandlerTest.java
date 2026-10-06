@@ -1,5 +1,7 @@
 package com.example.wallet.shared.web;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -19,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -68,6 +71,10 @@ class GlobalExceptionHandlerTest {
         @GetMapping("/unauthorized") void unauthorized() { throw new BadCredentials(); }
 
         @GetMapping("/stale") void stale() { throw new OptimisticLockingFailureException("row was updated by another transaction"); }
+
+        @GetMapping("/duplicate-key") void duplicateKey() {
+            throw new DataIntegrityViolationException("Unique index or primary key violation: PUBLIC.USERS(EMAIL)");
+        }
 
         @PostMapping("/things") void create(@Valid @RequestBody ThingRequest request) {}
     }
@@ -129,6 +136,16 @@ class GlobalExceptionHandlerTest {
         result.andExpect(status().isConflict())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.detail").isNotEmpty());
+    }
+
+    @Test
+    void mapsDataIntegrityViolationTo409WithoutLeakingInternals() throws Exception {
+        var result = getAuthenticated("/duplicate-key");
+
+        result.andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.detail").isNotEmpty())
+                .andExpect(content().string(not(containsString("USERS"))));
     }
 
     @Test
