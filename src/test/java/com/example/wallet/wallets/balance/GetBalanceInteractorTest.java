@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 
 import com.example.wallet.wallets.domain.Money;
 import com.example.wallet.wallets.domain.Wallet;
+import com.example.wallet.wallets.domain.WalletAccessDeniedException;
 import com.example.wallet.wallets.domain.WalletNotFoundException;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -34,5 +35,16 @@ class GetBalanceInteractorTest {
         var thrown = catchThrowable(() -> useCase.getBalance(new GetBalanceQuery(unknownId, ownerId)));
 
         assertThat(thrown).isInstanceOf(WalletNotFoundException.class).hasMessageContaining(unknownId.toString());
+    }
+
+    @Test
+    void rejectsRequesterWhoDoesNotOwnTheWallet() {
+        var wallet = Wallet.open(ownerId);
+        wallets.add(wallet);
+        var stranger = UUID.randomUUID();
+
+        var thrown = catchThrowable(() -> useCase.getBalance(new GetBalanceQuery(wallet.id(), stranger)));
+
+        assertThat(thrown).isInstanceOf(WalletAccessDeniedException.class);
     }
 }
