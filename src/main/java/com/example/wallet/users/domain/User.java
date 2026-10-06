@@ -15,4 +15,9 @@ public record User(UUID id, String name, Email email, String passwordHash) {
     public static User register(String name, Email email, String passwordHash) {
         return new User(UUID.randomUUID(), name, email, passwordHash);
     }
+
+    @Override
+    public String toString() {
+        return "User[id=" + id + ", name=" + name + ", email=" + email.value() + "]";
+    }
 }
