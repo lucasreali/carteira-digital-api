@@ -3,6 +3,7 @@ package com.example.wallet.wallets.deposit;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
+import com.example.wallet.wallets.domain.InvalidAmountException;
 import com.example.wallet.wallets.domain.Money;
 import com.example.wallet.wallets.domain.TransactionType;
 import com.example.wallet.wallets.domain.Wallet;
@@ -58,5 +59,15 @@ class DepositInteractorTest {
         assertThat(thrown).isInstanceOf(WalletAccessDeniedException.class);
         assertThat(wallets.saveCalls).isZero();
         assertThat(wallet.balance()).isEqualTo(Money.of("5.00"));
+    }
+
+    @Test
+    void rejectsAmountWithMoreThanTwoDecimals() {
+        var command = new DepositCommand(wallet.id(), ownerId, new BigDecimal("10.001"));
+
+        var thrown = catchThrowable(() -> useCase.deposit(command));
+
+        assertThat(thrown).isInstanceOf(InvalidAmountException.class);
+        assertThat(wallets.saveCalls).isZero();
     }
 }
