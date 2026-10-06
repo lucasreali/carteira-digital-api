@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-@WebMvcTest
+@WebMvcTest(GlobalExceptionHandlerTest.ThrowingController.class)
 @Import({SecurityConfig.class, GlobalExceptionHandlerTest.ThrowingController.class})
 class GlobalExceptionHandlerTest {
 
