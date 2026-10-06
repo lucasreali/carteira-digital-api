@@ -3,6 +3,7 @@ package com.example.wallet.wallets.domain;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.example.wallet.shared.domain.BusinessRuleException;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -68,6 +69,51 @@ class WalletTest {
 
         assertThatThrownBy(() -> wallet.deposit(Money.zero(), NOW)).isInstanceOf(InvalidAmountException.class);
         assertThat(wallet.balance()).isEqualTo(Money.of("10.00"));
+        assertThat(wallet.pendingTransactions()).isEmpty();
+    }
+
+    @Test
+    void withdrawDecreasesBalanceAndRecordsPendingTransaction() {
+        var wallet = walletWithBalance("10.00");
+
+        var transaction = wallet.withdraw(Money.of("4.00"), NOW);
+
+        assertThat(wallet.balance()).isEqualTo(Money.of("6.00"));
+        assertThat(transaction.walletId()).isEqualTo(wallet.id());
+        assertThat(transaction.type()).isEqualTo(TransactionType.WITHDRAWAL);
+        assertThat(transaction.amount()).isEqualTo(Money.of("4.00"));
+        assertThat(transaction.balanceAfter()).isEqualTo(Money.of("6.00"));
+        assertThat(transaction.counterpartyWalletId()).isNull();
+        assertThat(transaction.occurredAt()).isEqualTo(NOW);
+        assertThat(wallet.pendingTransactions()).containsExactly(transaction);
+    }
+
+    @Test
+    void withdrawAllowsEmptyingTheWallet() {
+        var wallet = walletWithBalance("10.00");
+
+        wallet.withdraw(Money.of("10.00"), NOW);
+
+        assertThat(wallet.balance()).isEqualTo(Money.zero());
+    }
+
+    @Test
+    void rejectsWithdrawalAboveBalance() {
+        var wallet = walletWithBalance("10.00");
+
+        assertThatThrownBy(() -> wallet.withdraw(Money.of("10.01"), NOW))
+                .isInstanceOf(InsufficientFundsException.class)
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("Insufficient funds");
+        assertThat(wallet.balance()).isEqualTo(Money.of("10.00"));
+        assertThat(wallet.pendingTransactions()).isEmpty();
+    }
+
+    @Test
+    void withdrawRejectsZeroAmount() {
+        var wallet = walletWithBalance("10.00");
+
+        assertThatThrownBy(() -> wallet.withdraw(Money.zero(), NOW)).isInstanceOf(InvalidAmountException.class);
         assertThat(wallet.pendingTransactions()).isEmpty();
     }
 
