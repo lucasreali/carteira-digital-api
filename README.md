@@ -24,11 +24,11 @@ API REST de uma carteira digital, desenvolvida para a disciplina de Cloud da PUC
 | Testes | JUnit 5, AssertJ, Mockito, `@WebMvcTest`, `@DataJpaTest`, `@SpringBootTest` |
 
 ```bash
-./gradlew test       # suíte completa
-./gradlew bootRun    # sobe a API em http://localhost:8080
+sh ./gradlew test       # suíte completa
+sh ./gradlew bootRun    # sobe a API em http://localhost:8080
 ```
 
-No WSL deste projeto não há `java` no PATH e o `gradlew` não tem bit de execução; aponte para o JDK 25 local:
+O `gradlew` está versionado sem bit de execução, então `./gradlew` falha num clone novo: rode `chmod +x gradlew` uma vez ou use `sh ./gradlew ...` como acima. Sem `java` no PATH (caso do WSL deste projeto), aponte `JAVA_HOME` para um JDK 25, por exemplo o baixado pelo IntelliJ em `~/.jdks/`:
 
 ```bash
 JAVA_HOME=~/.jdks/ms-25.0.4.1 sh ./gradlew test
@@ -40,7 +40,7 @@ Configuração (`src/main/resources/application.yaml`):
 |---|---|---|---|
 | `wallet.security.jwt-secret` | `WALLET_JWT_SECRET` | segredo de desenvolvimento | Chave HMAC, mínimo de 32 bytes. A aplicação não sobe com um segredo menor (`SecurityConfig`). Defina sempre em ambientes reais. |
 | `wallet.security.token-ttl` | - | `1h` | Validade do access token (`Duration`). |
-| `spring.datasource.url` | - | `jdbc:h2:mem:wallet` | H2 em memória, esquema gerado com `ddl-auto: update`. |
+| `spring.datasource.url` | - | `jdbc:h2:mem:wallet;DB_CLOSE_DELAY=-1` | H2 em memória, esquema gerado com `ddl-auto: update`. |
 
 ## API
 
@@ -70,7 +70,7 @@ Erros de negócio e de validação são devolvidos como `application/problem+jso
 | 403 | A carteira existe mas pertence a outro usuário |
 | 404 | Carteira inexistente |
 | 409 | E-mail já cadastrado, segunda carteira para o mesmo usuário, atualização concorrente (lock otimista) |
-| 422 | Regra de negócio: saldo insuficiente, transferência para a mesma carteira, valor inválido (inclusive mais de 2 casas decimais), e-mail com formato inválido para o domínio |
+| 422 | Regra de negócio: saldo insuficiente, transferência para a mesma carteira, valor com mais de 2 casas decimais ou acima do limite (zero e negativo são barrados antes, com 400), e-mail com formato inválido para o domínio |
 
 ### Exemplo com curl
 
@@ -153,7 +153,7 @@ Cada endpoint é uma fatia vertical: endpoint + comando + validação + orquestr
 
 | Item do checklist | Como foi atendido |
 |---|---|
-| Slice pequeno | 5 a 9 classes de produção por slice, cada interactor com um único método público curto |
+| Slice pequeno | 5 a 10 classes de produção por slice (10 no login, que inclui a porta `TokenIssuer` e seu adapter), cada interactor com um único método público curto |
 | Responsabilidade clara | Um caso de uso por slice; leituras (`GetBalanceQuery`, `GetStatementQuery`) separadas de escritas |
 | Testes perto | `src/test` espelha o pacote: `wallets/transfer/TransferInteractorTest` e `TransferControllerTest` ao lado do código do slice |
 | Shared mínimo | `shared` contém só a hierarquia de exceções, o handler HTTP e a configuração de segurança. O domínio de cada módulo (`users/domain`, `wallets/domain`) é compartilhado apenas dentro do módulo |
@@ -187,7 +187,7 @@ Duplicação foi tratada caso a caso:
 |---|---|
 | SRP | `DepositController` só traduz HTTP para `DepositCommand`; `DepositInteractor` só orquestra; `Wallet` aplica a regra; `WalletPersistenceAdapter` só persiste. `GlobalExceptionHandler` é o único lugar que conhece status HTTP |
 | OCP | `DomainException` é `sealed` e permite apenas cinco categorias abstratas (`NotFoundException`, `ConflictException`, `BusinessRuleException`, `ForbiddenException`, `UnauthorizedException`). `GlobalExceptionHandler` faz um `switch` exaustivo sobre as categorias. Uma exceção nova (ex.: `SameWalletTransferException extends BusinessRuleException`) ganha o status correto sem tocar no handler |
-| LSP | O contrato de `WalletRepository.save` (documentado na interface: atômico, limpa as transações pendentes, falha com lock otimista em carteira desatualizada) é respeitado tanto por `WalletPersistenceAdapter` quanto pelos fakes `InMemoryWallets`, que devolvem cópias como um banco faria. O adapter ainda grava em ordem de id para evitar deadlock, verificado em `WalletPersistenceAdapterOrderingTest` |
+| LSP | O contrato de `WalletRepository.save` (documentado na interface: atômico, limpa as transações pendentes, falha com lock otimista em carteira desatualizada) é cumprido por `WalletPersistenceAdapter`; os fakes `InMemoryWallets` cumprem a parte que os interactors observam (gravar e limpar as transações pendentes), e o de `TransferInteractorTest` também devolve cópias, como um banco faria. O adapter ainda grava em ordem de id para evitar deadlock, verificado em `WalletPersistenceAdapterOrderingTest` |
 | ISP | Carteira e histórico são portas separadas: `WalletRepository` (`findById`, `existsByOwnerId`, `save`) e `TransactionHistory` (`findByWalletId`). Só `GetStatementInteractor` depende de `TransactionHistory`; os outros cinco interactors de carteira não enxergam o histórico. Um único adapter implementa as duas |
 | DIP | Interactors recebem portas por construtor (`LoginInteractor(UserRepository, PasswordHasher, TokenIssuer)`), e a escolha da implementação fica nas classes `*Config` |
 
@@ -204,7 +204,7 @@ Onde SOLID deliberadamente não foi aplicado: não há interface sem variação.
 
 ### TDD
 
-O ciclo Red, Green, Refactor está no histórico do branch `feat/digital-wallet`: cada comportamento entra como `test(<escopo>): ...` (teste falhando) seguido de `feat(<escopo>): ...` (código mínimo, suíte verde). Exemplo do slice de saque:
+O ciclo Red/Green está visível no histórico do branch `feat/digital-wallet`: cada comportamento entra como `test(<escopo>)` (teste falhando) seguido de `feat(<escopo>)` (código mínimo, suíte verde). Não há commits `refactor(...)` dedicados: as melhorias de design vieram das rodadas de follow-up dos revisores, registradas como novos pares `test`/`feat`/`fix` (ex.: ordenação por id no save, `Persistable` sem SELECT extra, mascaramento de senha em `toString`). Exemplo do slice de saque:
 
 ```
 d7e903d test(wallets-withdraw): withdrawal decreases balance and persists WITHDRAWAL
@@ -218,9 +218,9 @@ aa76034 feat(wallets-withdraw): withdraw from wallet and persist transaction
 - Ordem de construção: primeiro testes unitários sem Spring para domínio (`MoneyTest`, `WalletTest`, `UserTest`, `EmailTest`) e casos de uso (`*InteractorTest` com fakes em memória), depois adapters (`@DataJpaTest` em `JpaUserRepositoryTest` e `WalletPersistenceAdapterTest`; `@WebMvcTest` nos controllers), por fim E2E (`e2e/WalletJourneyE2ETest`, `e2e/ErrorContractE2ETest`).
 - Testes de contrato que passaram de primeira (porque o código existente já cobria o comportamento) foram commitados sozinhos como `test(...)` e não justificaram código novo, por exemplo `117354b test(wallets-statement): empty array, 401, 404 and 403 contract` e os três commits do nó I.
 - Correções vindas de revisão também seguiram Red/Green: `ecba77c test(shared-security): reject jwt secrets shorter than 32 bytes` seguido de `5243ea0 feat(shared-security): fail fast on jwt secrets shorter than 32 bytes`.
-- Números do branch (sem merges): 153 commits, sendo 82 `test`, 65 `feat`, 3 `fix`, 3 `chore`.
+- Números do branch antes deste README (sem merges): 153 commits, sendo 82 `test`, 65 `feat`, 3 `fix`, 3 `chore` e nenhum `refactor`.
 
-Suíte final (`./gradlew cleanTest test`, contada nos XML de `build/test-results`): 179 testes em 37 classes, 0 falhas, 0 ignorados.
+Suíte final (`sh ./gradlew cleanTest test`, contada nos XML de `build/test-results`): 179 testes em 37 classes, 0 falhas, 0 ignorados.
 
 | Camada | Classes | Testes |
 |---|---|---|
@@ -283,9 +283,9 @@ Como a orquestração funcionou:
 
 | Nó | Implementador | Revisor | Integração |
 |---|---|---|---|
-| S0 shared-foundation | Dependências (webmvc, data-jpa, validation, security, oauth2-resource-server, h2 e starters de teste do Boot 4), `application.yaml`, `DomainException` sealed + 5 categorias, `GlobalExceptionHandler`, `SecurityConfig` + `JwtProperties`. 16 testes | Rodada 1 CHANGES_REQUESTED: bloqueante, `@WebMvcTest` sem `controllers` carregaria todos os controllers e quebraria quando os slices entrassem; menores: tamanho do segredo JWT não validado, propriedade de problem details sem efeito, `DataIntegrityViolationException` virando 500. Rodada 2 APPROVED | direto no branch (`007bf8b`, `5243ea0`, `bfc343b` são as correções) |
-| U0 users-core | `Email`, `User` (`register`/`rehydrate`), exceções (422, 409, 401), portas `UserRepository`/`PasswordHasher`, `UserJpaEntity` + `JpaUserRepository` (`saveAndFlush`, e-mail único), `SpringPasswordHasher`. 19 commits, 36 testes | APPROVED; menores: `User.toString` expunha o hash, faltavam checagens de null | `64cc9dc`, follow-up `86fe6d1` |
-| W0 wallets-core | `Money` (escala 2, até 17 dígitos inteiros), `Transaction`/`TransactionType`, agregado `Wallet`, 6 exceções, portas `WalletRepository`/`TransactionHistory`, entidades JPA + `WalletPersistenceAdapter` (`@Transactional`, `@Version`, dono único), `TransactionResponse`, bean `Clock`. 16 commits, 58 testes | APPROVED; menores: risco de deadlock em transferências opostas concorrentes, SELECT extra a cada insert, relógio em nanos vs coluna em micros | `c07c6f4`, follow-up `8b5ad73` (save em ordem de id, `Persistable.isNew`, relógio em microssegundos) |
+| S0 shared-foundation | Dependências (webmvc, data-jpa, validation, security, oauth2-resource-server, h2 e starters de teste do Boot 4), `application.yaml`, `DomainException` sealed + 5 categorias, `GlobalExceptionHandler`, `SecurityConfig` + `JwtProperties`. 16 testes | Rodada 1 CHANGES_REQUESTED: bloqueante, `@WebMvcTest` sem `controllers` carregaria todos os controllers e quebraria quando os slices entrassem; menores: tamanho do segredo JWT não validado, propriedade de problem details sem efeito, `DataIntegrityViolationException` virando 500. Rodada 2 APPROVED | direto no branch (`007bf8b`, `4541eb8`, `5243ea0`, `bfc343b` são as correções) |
+| U0 users-core | `Email`, `User` (`register`/`rehydrate`), exceções (422, 409, 401), portas `UserRepository`/`PasswordHasher`, `UserJpaEntity` + `JpaUserRepository` (`saveAndFlush`, e-mail único), `SpringPasswordHasher`. 19 commits, suíte com 36 testes após o merge | APPROVED; menores: `User.toString` expunha o hash, faltavam checagens de null | `64cc9dc`, follow-up `86fe6d1` |
+| W0 wallets-core | `Money` (escala 2, até 17 dígitos inteiros), `Transaction`/`TransactionType`, agregado `Wallet`, 6 exceções, portas `WalletRepository`/`TransactionHistory`, entidades JPA + `WalletPersistenceAdapter` (`@Transactional`, `@Version`, dono único), `TransactionResponse`, bean `Clock`. 16 commits, suíte com 58 testes após o merge | APPROVED; menores: risco de deadlock em transferências opostas concorrentes, SELECT extra a cada insert, relógio em nanos vs coluna em micros | `c07c6f4`, follow-up `8b5ad73` (save em ordem de id, `Persistable.isNew`, relógio em microssegundos) |
 | U1 register | `RegisterUserUseCase`/`RegisterUserInteractor`/`RegisterUserController`, `POST /users` 201 + `Location`, validação. 9 commits | APPROVED; menores: limite de 72 bytes do BCrypt vs `@Size` em caracteres (senha multibyte gerava 500), asserção de hasher não chamado, senha no `toString` do record | `c76b212`, follow-up `f0c1b91` (`@MaxUtf8Bytes`, mascaramento) |
 | U2 login | Porta `TokenIssuer` + `AccessToken`, `LoginInteractor` (401 uniforme para e-mail desconhecido, senha errada ou e-mail malformado; verificação contra hash fictício para igualar tempo), `JwtTokenIssuer` (`sub`, `iat`, `exp`, `email`), `POST /auth/login`. 12 commits | APPROVED; menores: senha no `toString` do record, teste de guarda para a senha fictícia | `c8ac9d5`, follow-up `91ed5ce` |
 | W1 create-wallet | `POST /wallets` 201 + `Location`, uma carteira por usuário. 8 commits | APPROVED; menor: um commit `feat` deixou a suíte vermelha até o commit de config, virou regra no brief dos slices (config no mesmo commit verde do controller) | `e7a8167` |
@@ -319,7 +319,7 @@ Incidentes:
 - Banco H2 em memória apenas, com `ddl-auto: update` e sem migrations.
 - Extrato sem paginação; a ordem entre transações com o mesmo timestamp (precisão de microssegundos) é indefinida.
 - Valores com mais de 2 casas decimais e e-mails que passam no `@Email` mas são inválidos para o domínio retornam 422 (regra de domínio), não 400.
-- O header `Location` de `POST /users` aponta para `/users/{id}`, que não tem endpoint `GET`.
+- Os headers `Location` de `POST /users` e `POST /wallets` apontam para `/users/{id}` e `/wallets/{id}`, que não têm endpoint `GET`.
 - Um JWT com `sub` que não seja UUID geraria 500; não é alcançável porque só tokens emitidos pela própria API são aceitos.
 - O 401 de requisição sem token vem do entry point do Spring Security com corpo vazio, não como `ProblemDetail`.
 - Conflitos de concorrência (lock otimista) retornam 409 e o cliente deve repetir a operação; não há retry automático.
