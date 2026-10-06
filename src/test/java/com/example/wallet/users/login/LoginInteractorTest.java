@@ -1,8 +1,10 @@
 package com.example.wallet.users.login;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import com.example.wallet.users.domain.Email;
+import com.example.wallet.users.domain.InvalidCredentialsException;
 import com.example.wallet.users.domain.PasswordHasher;
 import com.example.wallet.users.domain.User;
 import com.example.wallet.users.domain.UserRepository;
@@ -34,6 +36,16 @@ class LoginInteractorTest {
         AccessToken token = interactor.login(new LoginCommand(" Alice@Example.com ", "s3cret-password"));
 
         assertThat(token).isEqualTo(new AccessToken("token-for-" + alice.id(), Duration.ofHours(1)));
+    }
+
+    @Test
+    void rejectsWrongPassword() {
+        registered("alice@example.com", "s3cret-password");
+
+        Throwable thrown = catchThrowable(
+                () -> interactor.login(new LoginCommand("alice@example.com", "wrong-password")));
+
+        assertThat(thrown).isInstanceOf(InvalidCredentialsException.class);
     }
 
     private static final class InMemoryUserRepository implements UserRepository {
