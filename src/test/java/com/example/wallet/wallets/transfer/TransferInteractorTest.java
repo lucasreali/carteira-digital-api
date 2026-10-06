@@ -1,12 +1,17 @@
 package com.example.wallet.wallets.transfer;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.Assertions.tuple;
 
+import com.example.wallet.wallets.domain.InsufficientFundsException;
 import com.example.wallet.wallets.domain.Money;
+import com.example.wallet.wallets.domain.SameWalletTransferException;
 import com.example.wallet.wallets.domain.Transaction;
 import com.example.wallet.wallets.domain.TransactionType;
 import com.example.wallet.wallets.domain.Wallet;
+import com.example.wallet.wallets.domain.WalletAccessDeniedException;
+import com.example.wallet.wallets.domain.WalletNotFoundException;
 import com.example.wallet.wallets.domain.WalletRepository;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -59,6 +64,63 @@ class TransferInteractorTest {
         assertThat(call.pending()).extracting(Transaction::walletId, Transaction::type).containsExactly(
                 tuple(source.id(), TransactionType.TRANSFER_OUT),
                 tuple(target.id(), TransactionType.TRANSFER_IN));
+    }
+
+    @Test
+    void rejectsUnknownSourceWallet() {
+        Wallet target = stored(bob, "5.00");
+
+        Throwable thrown = catchThrowable(() -> interactor.transfer(
+                new TransferCommand(UUID.randomUUID(), alice, target.id(), new BigDecimal("1.00"))));
+
+        assertThat(thrown).isInstanceOf(WalletNotFoundException.class);
+        assertThat(wallets.saveCalls).isEmpty();
+    }
+
+    @Test
+    void rejectsUnknownTargetWallet() {
+        Wallet source = stored(alice, "100.00");
+
+        Throwable thrown = catchThrowable(() -> interactor.transfer(
+                new TransferCommand(source.id(), alice, UUID.randomUUID(), new BigDecimal("1.00"))));
+
+        assertThat(thrown).isInstanceOf(WalletNotFoundException.class);
+        assertThat(wallets.saveCalls).isEmpty();
+    }
+
+    @Test
+    void rejectsRequesterWhoDoesNotOwnTheSource() {
+        Wallet source = stored(alice, "100.00");
+        Wallet target = stored(bob, "5.00");
+
+        Throwable thrown = catchThrowable(() -> interactor.transfer(
+                new TransferCommand(source.id(), bob, target.id(), new BigDecimal("1.00"))));
+
+        assertThat(thrown).isInstanceOf(WalletAccessDeniedException.class);
+        assertThat(wallets.saveCalls).isEmpty();
+    }
+
+    @Test
+    void rejectsTransferAboveSourceBalanceWithoutSaving() {
+        Wallet source = stored(alice, "10.00");
+        Wallet target = stored(bob, "5.00");
+
+        Throwable thrown = catchThrowable(() -> interactor.transfer(
+                new TransferCommand(source.id(), alice, target.id(), new BigDecimal("10.01"))));
+
+        assertThat(thrown).isInstanceOf(InsufficientFundsException.class);
+        assertThat(wallets.saveCalls).isEmpty();
+    }
+
+    @Test
+    void rejectsTransferToTheSameWallet() {
+        Wallet source = stored(alice, "100.00");
+
+        Throwable thrown = catchThrowable(() -> interactor.transfer(
+                new TransferCommand(source.id(), alice, source.id(), new BigDecimal("1.00"))));
+
+        assertThat(thrown).isInstanceOf(SameWalletTransferException.class);
+        assertThat(wallets.saveCalls).isEmpty();
     }
 
     record SavedCall(List<Wallet> wallets, List<Transaction> pending) {
