@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.example.wallet.wallets.domain.Money;
 import com.example.wallet.wallets.domain.Wallet;
+import com.example.wallet.wallets.domain.WalletAccessDeniedException;
 import com.example.wallet.wallets.domain.WalletNotFoundException;
 import java.time.Instant;
 import java.util.List;
@@ -47,6 +48,18 @@ class GetStatementInteractorTest {
 
         assertThatThrownBy(() -> useCase.getStatement(new GetStatementQuery(unknownId, ownerId)))
                 .isInstanceOf(WalletNotFoundException.class);
+
+        assertThat(wallets.historyQueries).isEmpty();
+    }
+
+    @Test
+    void rejectsRequesterWhoDoesNotOwnTheWallet() {
+        var wallet = Wallet.open(ownerId);
+        wallets.save(wallet);
+        var stranger = UUID.randomUUID();
+
+        assertThatThrownBy(() -> useCase.getStatement(new GetStatementQuery(wallet.id(), stranger)))
+                .isInstanceOf(WalletAccessDeniedException.class);
 
         assertThat(wallets.historyQueries).isEmpty();
     }
