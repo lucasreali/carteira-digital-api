@@ -6,6 +6,9 @@ import java.util.UUID;
 public record User(UUID id, String name, Email email, String passwordHash) {
 
     public User {
+        if (name == null || name.isBlank()) {
+            throw new InvalidUserNameException();
+        }
         name = name.trim();
     }
 
