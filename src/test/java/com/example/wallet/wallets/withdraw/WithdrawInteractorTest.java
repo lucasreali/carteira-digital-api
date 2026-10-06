@@ -1,10 +1,12 @@
 package com.example.wallet.wallets.withdraw;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import com.example.wallet.wallets.domain.Money;
 import com.example.wallet.wallets.domain.TransactionType;
 import com.example.wallet.wallets.domain.Wallet;
+import com.example.wallet.wallets.domain.WalletNotFoundException;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
@@ -34,5 +36,15 @@ class WithdrawInteractorTest {
         assertThat(transaction.occurredAt()).isEqualTo(NOW);
         assertThat(wallets.findById(wallet.id()).orElseThrow().balance()).isEqualTo(Money.of("70.00"));
         assertThat(wallets.savedTransactions).containsExactly(transaction);
+    }
+
+    @Test
+    void rejectsUnknownWallet() {
+        var command = new WithdrawCommand(UUID.randomUUID(), ownerId, new BigDecimal("10.00"));
+
+        var thrown = catchThrowable(() -> withdraw.withdraw(command));
+
+        assertThat(thrown).isInstanceOf(WalletNotFoundException.class);
+        assertThat(wallets.saveCalls).isZero();
     }
 }
