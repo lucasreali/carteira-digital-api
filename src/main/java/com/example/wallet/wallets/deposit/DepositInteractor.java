@@ -21,6 +21,7 @@ public class DepositInteractor implements DepositUseCase {
     public Transaction deposit(DepositCommand command) {
         var wallet = wallets.findById(command.walletId())
                 .orElseThrow(() -> new WalletNotFoundException(command.walletId()));
+        wallet.ensureOwnedBy(command.requesterId());
         var transaction = wallet.deposit(Money.of(command.amount()), Instant.now(clock));
         wallets.save(wallet);
         return transaction;
