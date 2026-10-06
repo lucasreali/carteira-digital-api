@@ -1,6 +1,7 @@
 package com.example.wallet.wallets.deposit;
 
 import com.example.wallet.wallets.web.TransactionResponse;
+import jakarta.validation.Valid;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -23,7 +24,7 @@ class DepositController {
     @PostMapping("/wallets/{id}/deposits")
     @ResponseStatus(HttpStatus.CREATED)
     TransactionResponse deposit(
-            @PathVariable UUID id, @RequestBody DepositRequest request, @AuthenticationPrincipal Jwt jwt) {
+            @PathVariable UUID id, @Valid @RequestBody DepositRequest request, @AuthenticationPrincipal Jwt jwt) {
         var command = new DepositCommand(id, UUID.fromString(jwt.getSubject()), request.amount());
         return TransactionResponse.from(useCase.deposit(command));
     }
