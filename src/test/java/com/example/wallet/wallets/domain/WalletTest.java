@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.example.wallet.shared.domain.BusinessRuleException;
+import com.example.wallet.shared.domain.ForbiddenException;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -179,6 +180,25 @@ class WalletTest {
         assertThatThrownBy(() -> source.transferTo(target, Money.zero(), NOW))
                 .isInstanceOf(InvalidAmountException.class);
         assertThat(target.pendingTransactions()).isEmpty();
+    }
+
+    @Test
+    void ownerPassesOwnershipCheck() {
+        var wallet = walletWithBalance("1.00");
+
+        wallet.ensureOwnedBy(ownerId);
+    }
+
+    @Test
+    void rejectsAccessByAnotherUserWithoutRevealingTheOwner() {
+        var wallet = walletWithBalance("1.00");
+
+        assertThatThrownBy(() -> wallet.ensureOwnedBy(UUID.randomUUID()))
+                .isInstanceOf(WalletAccessDeniedException.class)
+                .isInstanceOf(ForbiddenException.class)
+                .message()
+                .doesNotContain(ownerId.toString())
+                .doesNotContain("1.00");
     }
 
     @Test
