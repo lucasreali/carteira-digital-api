@@ -1,5 +1,6 @@
 package com.example.wallet.wallets.transfer;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -66,8 +67,8 @@ class TransferControllerTest {
                 .andExpect(jsonPath("$.id").value(txId.toString()))
                 .andExpect(jsonPath("$.walletId").value(sourceId.toString()))
                 .andExpect(jsonPath("$.type").value("TRANSFER_OUT"))
-                .andExpect(jsonPath("$.amount").value(30.00))
-                .andExpect(jsonPath("$.balanceAfter").value(70.00))
+                .andExpect(content().string(containsString("\"amount\":30.00")))
+                .andExpect(content().string(containsString("\"balanceAfter\":70.00")))
                 .andExpect(jsonPath("$.counterpartyWalletId").value(targetId.toString()))
                 .andExpect(jsonPath("$.occurredAt").value("2026-10-05T12:00:00Z"));
     }

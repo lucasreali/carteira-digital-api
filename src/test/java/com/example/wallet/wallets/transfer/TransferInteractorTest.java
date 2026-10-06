@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.Assertions.tuple;
 
 import com.example.wallet.wallets.domain.InsufficientFundsException;
+import com.example.wallet.wallets.domain.InvalidAmountException;
 import com.example.wallet.wallets.domain.Money;
 import com.example.wallet.wallets.domain.SameWalletTransferException;
 import com.example.wallet.wallets.domain.Transaction;
@@ -109,6 +110,18 @@ class TransferInteractorTest {
                 new TransferCommand(source.id(), alice, target.id(), new BigDecimal("10.01"))));
 
         assertThat(thrown).isInstanceOf(InsufficientFundsException.class);
+        assertThat(wallets.saveCalls).isEmpty();
+    }
+
+    @Test
+    void rejectsAmountWithMoreThanTwoDecimalsWithoutSaving() {
+        Wallet source = stored(alice, "100.00");
+        Wallet target = stored(bob, "5.00");
+
+        Throwable thrown = catchThrowable(() -> interactor.transfer(
+                new TransferCommand(source.id(), alice, target.id(), new BigDecimal("1.005"))));
+
+        assertThat(thrown).isInstanceOf(InvalidAmountException.class);
         assertThat(wallets.saveCalls).isEmpty();
     }
 
