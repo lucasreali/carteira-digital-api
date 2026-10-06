@@ -40,6 +40,19 @@ public final class Wallet {
         return record(TransactionType.DEPOSIT, amount, null, occurredAt);
     }
 
+    public Transaction withdraw(Money amount, Instant occurredAt) {
+        debit(amount);
+        return record(TransactionType.WITHDRAWAL, amount, null, occurredAt);
+    }
+
+    private void debit(Money amount) {
+        amount.requirePositive();
+        if (amount.isGreaterThan(balance)) {
+            throw new InsufficientFundsException();
+        }
+        balance = balance.minus(amount);
+    }
+
     private Transaction record(TransactionType type, Money amount, UUID counterpartyWalletId, Instant occurredAt) {
         var transaction = new Transaction(
                 UUID.randomUUID(), id, type, amount, balance, counterpartyWalletId, occurredAt);
