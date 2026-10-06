@@ -35,4 +35,13 @@ class UserTest {
                 .isInstanceOf(InvalidUserNameException.class)
                 .isInstanceOf(BusinessRuleException.class);
     }
+
+    @Test
+    void toStringOmitsPasswordHash() {
+        User user = User.register("Alice", EMAIL, HASH);
+
+        String text = user.toString();
+
+        assertThat(text).contains(user.id().toString(), "Alice", EMAIL.value()).doesNotContain(HASH);
+    }
 }
