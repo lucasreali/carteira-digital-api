@@ -13,4 +13,9 @@ public record RegisterUserRequest(
     RegisterUserCommand toCommand() {
         return new RegisterUserCommand(name, email, password);
     }
+
+    @Override
+    public String toString() {
+        return "RegisterUserRequest[name=" + name + ", email=" + email + ", password=***]";
+    }
 }
