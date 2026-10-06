@@ -8,6 +8,7 @@ import com.example.wallet.shared.domain.NotFoundException;
 import com.example.wallet.shared.domain.UnauthorizedException;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -41,6 +42,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ProblemDetail handleOptimisticLock(OptimisticLockingFailureException ex) {
         return ProblemDetail.forStatusAndDetail(
                 HttpStatus.CONFLICT, "The resource was modified concurrently. Retry the operation.");
+    }
+
+    /** Unique-constraint races that slipped past the use case's existence checks (e.g. duplicate email). */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    ProblemDetail handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        return ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT, "The request conflicts with existing data.");
     }
 
     @Override
