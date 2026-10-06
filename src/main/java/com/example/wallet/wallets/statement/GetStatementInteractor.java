@@ -18,7 +18,9 @@ public class GetStatementInteractor implements GetStatementUseCase {
 
     @Override
     public List<Transaction> getStatement(GetStatementQuery query) {
-        wallets.findById(query.walletId()).orElseThrow(() -> new WalletNotFoundException(query.walletId()));
+        var wallet = wallets.findById(query.walletId())
+                .orElseThrow(() -> new WalletNotFoundException(query.walletId()));
+        wallet.ensureOwnedBy(query.requesterId());
         return transactionHistory.findByWalletId(query.walletId());
     }
 }
