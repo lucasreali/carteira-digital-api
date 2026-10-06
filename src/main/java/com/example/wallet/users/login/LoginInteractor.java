@@ -5,25 +5,31 @@ import com.example.wallet.users.domain.InvalidCredentialsException;
 import com.example.wallet.users.domain.PasswordHasher;
 import com.example.wallet.users.domain.User;
 import com.example.wallet.users.domain.UserRepository;
+import java.util.Optional;
 
 public class LoginInteractor implements LoginUseCase {
 
     private final UserRepository users;
     private final PasswordHasher passwordHasher;
     private final TokenIssuer tokenIssuer;
+    /** Checked against when the email is unknown, so both failure paths cost one hash verification. */
+    private final String dummyHash;
 
     public LoginInteractor(UserRepository users, PasswordHasher passwordHasher, TokenIssuer tokenIssuer) {
         this.users = users;
         this.passwordHasher = passwordHasher;
         this.tokenIssuer = tokenIssuer;
+        this.dummyHash = passwordHasher.hash("dummy-password-for-timing");
     }
 
     @Override
     public AccessToken login(LoginCommand command) {
-        User user = users.findByEmail(new Email(command.email())).orElseThrow(InvalidCredentialsException::new);
-        if (!passwordHasher.matches(command.password(), user.passwordHash())) {
+        Optional<User> user = users.findByEmail(new Email(command.email()));
+        String hash = user.map(User::passwordHash).orElse(dummyHash);
+        boolean matches = passwordHasher.matches(command.password(), hash);
+        if (user.isEmpty() || !matches) {
             throw new InvalidCredentialsException();
         }
-        return tokenIssuer.issueFor(user);
+        return tokenIssuer.issueFor(user.get());
     }
 }
