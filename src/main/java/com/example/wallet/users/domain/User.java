@@ -1,11 +1,15 @@
 package com.example.wallet.users.domain;
 
+import java.util.Objects;
 import java.util.UUID;
 
 /** Registered user. The canonical constructor rehydrates from persistence; {@link #register} creates a new one. */
 public record User(UUID id, String name, Email email, String passwordHash) {
 
     public User {
+        Objects.requireNonNull(id, "id");
+        Objects.requireNonNull(email, "email");
+        Objects.requireNonNull(passwordHash, "passwordHash");
         if (name == null || name.isBlank()) {
             throw new InvalidUserNameException();
         }
