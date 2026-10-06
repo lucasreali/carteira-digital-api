@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.example.wallet.shared.domain.BusinessRuleException;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
@@ -34,6 +35,15 @@ class UserTest {
         assertThatThrownBy(() -> User.register(name, EMAIL, HASH))
                 .isInstanceOf(InvalidUserNameException.class)
                 .isInstanceOf(BusinessRuleException.class);
+    }
+
+    @Test
+    void rejectsMissingIdEmailOrPasswordHash() {
+        UUID id = UUID.randomUUID();
+
+        assertThatThrownBy(() -> new User(null, "Alice", EMAIL, HASH)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new User(id, "Alice", null, HASH)).isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(() -> new User(id, "Alice", EMAIL, null)).isInstanceOf(NullPointerException.class);
     }
 
     @Test
