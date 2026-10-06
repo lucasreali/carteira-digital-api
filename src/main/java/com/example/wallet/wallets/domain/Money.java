@@ -5,6 +5,9 @@ import java.math.BigDecimal;
 /** Non-negative monetary amount, always held with scale 2 so that 10 and 10.00 are equal. */
 public record Money(BigDecimal value) {
 
+    /** Matches the NUMERIC(19,2) column: 17 integer digits plus 2 decimals. */
+    private static final int MAX_INTEGER_DIGITS = 17;
+
     private static final Money ZERO = new Money(BigDecimal.ZERO);
 
     public Money {
@@ -16,6 +19,9 @@ public record Money(BigDecimal value) {
         }
         if (value.stripTrailingZeros().scale() > 2) {
             throw new InvalidAmountException("Amount must have at most 2 decimal places.");
+        }
+        if (value.precision() - value.scale() > MAX_INTEGER_DIGITS) {
+            throw new InvalidAmountException("Amount is too large.");
         }
         value = value.setScale(2);
     }
