@@ -1,8 +1,10 @@
 package com.example.wallet.users.register;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import com.example.wallet.users.domain.Email;
+import com.example.wallet.users.domain.EmailAlreadyRegisteredException;
 import com.example.wallet.users.domain.PasswordHasher;
 import com.example.wallet.users.domain.User;
 import com.example.wallet.users.domain.UserRepository;
@@ -43,5 +45,16 @@ class RegisterUserInteractorTest {
         assertThat(created.email()).isEqualTo(new Email("ana@example.com"));
         assertThat(created.passwordHash()).isEqualTo("hashed:s3cret-pass");
         assertThat(users.findByEmail(new Email("ana@example.com"))).contains(created);
+    }
+
+    @Test
+    void rejectsEmailAlreadyRegisteredRegardlessOfCase() {
+        User existing = interactor.register(new RegisterUserCommand("Ana", "ana@example.com", "s3cret-pass"));
+        var duplicate = new RegisterUserCommand("Other", "ANA@example.com", "another-pass");
+
+        var thrown = catchThrowable(() -> interactor.register(duplicate));
+
+        assertThat(thrown).isInstanceOf(EmailAlreadyRegisteredException.class);
+        assertThat(users.users.values()).containsExactly(existing);
     }
 }
