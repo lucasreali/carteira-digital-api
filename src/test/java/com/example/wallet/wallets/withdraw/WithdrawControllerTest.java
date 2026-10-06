@@ -1,5 +1,6 @@
 package com.example.wallet.wallets.withdraw;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -71,6 +72,8 @@ class WithdrawControllerTest {
                 .andExpect(jsonPath("$.type").value("WITHDRAWAL"))
                 .andExpect(jsonPath("$.amount").value(30.0))
                 .andExpect(jsonPath("$.balanceAfter").value(70.0))
+                .andExpect(content().string(containsString("\"amount\":30.00")))
+                .andExpect(content().string(containsString("\"balanceAfter\":70.00")))
                 .andExpect(jsonPath("$.counterpartyWalletId").isEmpty())
                 .andExpect(jsonPath("$.occurredAt").value("2026-10-05T12:00:00Z"));
         verify(useCase).withdraw(new WithdrawCommand(walletId, userId, new BigDecimal("30.00")));
