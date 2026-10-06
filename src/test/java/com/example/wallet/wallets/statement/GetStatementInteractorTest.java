@@ -1,9 +1,11 @@
 package com.example.wallet.wallets.statement;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.example.wallet.wallets.domain.Money;
 import com.example.wallet.wallets.domain.Wallet;
+import com.example.wallet.wallets.domain.WalletNotFoundException;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -37,5 +39,15 @@ class GetStatementInteractorTest {
         var statement = useCase.getStatement(new GetStatementQuery(wallet.id(), ownerId));
 
         assertThat(statement).isEmpty();
+    }
+
+    @Test
+    void rejectsUnknownWallet() {
+        var unknownId = UUID.randomUUID();
+
+        assertThatThrownBy(() -> useCase.getStatement(new GetStatementQuery(unknownId, ownerId)))
+                .isInstanceOf(WalletNotFoundException.class);
+
+        assertThat(wallets.historyQueries).isEmpty();
     }
 }
