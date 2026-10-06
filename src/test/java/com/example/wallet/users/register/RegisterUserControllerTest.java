@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.example.wallet.shared.security.SecurityConfig;
 import com.example.wallet.users.domain.Email;
+import com.example.wallet.users.domain.EmailAlreadyRegisteredException;
 import com.example.wallet.users.domain.User;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -86,5 +87,16 @@ class RegisterUserControllerTest {
                 .andExpect(jsonPath("$.errors.email").isNotEmpty())
                 .andExpect(jsonPath("$.errors.password").isNotEmpty());
         verifyNoInteractions(useCase);
+    }
+
+    @Test
+    void returnsConflictProblemWhenEmailAlreadyRegistered() throws Exception {
+        when(useCase.register(any())).thenThrow(new EmailAlreadyRegisteredException());
+
+        var result = postUsers(VALID_BODY);
+
+        result.andExpect(status().isConflict())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.detail").value("Email already registered"));
     }
 }
