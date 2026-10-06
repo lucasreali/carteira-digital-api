@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 import com.example.wallet.wallets.domain.Money;
 import com.example.wallet.wallets.domain.TransactionType;
 import com.example.wallet.wallets.domain.Wallet;
+import com.example.wallet.wallets.domain.WalletAccessDeniedException;
 import com.example.wallet.wallets.domain.WalletNotFoundException;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -46,5 +47,16 @@ class WithdrawInteractorTest {
 
         assertThat(thrown).isInstanceOf(WalletNotFoundException.class);
         assertThat(wallets.saveCalls).isZero();
+    }
+
+    @Test
+    void rejectsWithdrawalByNonOwnerWithoutSaving() {
+        var command = new WithdrawCommand(wallet.id(), UUID.randomUUID(), new BigDecimal("10.00"));
+
+        var thrown = catchThrowable(() -> withdraw.withdraw(command));
+
+        assertThat(thrown).isInstanceOf(WalletAccessDeniedException.class);
+        assertThat(wallets.saveCalls).isZero();
+        assertThat(wallet.balance()).isEqualTo(Money.of("100.00"));
     }
 }
