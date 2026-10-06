@@ -11,18 +11,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.example.wallet.shared.security.SecurityConfig;
+import com.example.wallet.wallets.domain.InsufficientFundsException;
 import com.example.wallet.wallets.domain.Money;
 import com.example.wallet.wallets.domain.Transaction;
 import com.example.wallet.wallets.domain.TransactionType;
+import com.example.wallet.wallets.domain.WalletAccessDeniedException;
+import com.example.wallet.wallets.domain.WalletNotFoundException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -78,5 +85,34 @@ class WithdrawControllerTest {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.errors.amount").isNotEmpty());
         verifyNoInteractions(useCase);
+    }
+
+    @Test
+    void rejectsRequestWithoutToken() throws Exception {
+        var result = mvc.perform(post("/wallets/{id}/withdrawals", walletId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"amount\":\"10.00\"}"));
+
+        result.andExpect(status().isUnauthorized());
+        verifyNoInteractions(useCase);
+    }
+
+    static Stream<Arguments> domainErrors() {
+        return Stream.of(
+                Arguments.of(new WalletNotFoundException(UUID.randomUUID()), HttpStatus.NOT_FOUND),
+                Arguments.of(new WalletAccessDeniedException(), HttpStatus.FORBIDDEN),
+                Arguments.of(new InsufficientFundsException(), HttpStatus.UNPROCESSABLE_CONTENT));
+    }
+
+    @ParameterizedTest
+    @MethodSource("domainErrors")
+    void mapsDomainErrorsToProblemDetail(RuntimeException error, HttpStatus expectedStatus) throws Exception {
+        when(useCase.withdraw(any())).thenThrow(error);
+
+        var result = postWithdrawal("{\"amount\":\"10.00\"}");
+
+        result.andExpect(status().is(expectedStatus.value()))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.detail").value(error.getMessage()));
     }
 }
