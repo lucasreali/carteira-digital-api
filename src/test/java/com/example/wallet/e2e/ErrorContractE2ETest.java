@@ -132,6 +132,7 @@ class ErrorContractE2ETest extends EndToEndTest {
 
         result.andExpect(status().isUnprocessableContent())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+        balance(alice.token(), alice.walletId()).andExpect(content().string(containsString("\"balance\":10.00")));
     }
 
     @Test
@@ -168,6 +169,7 @@ class ErrorContractE2ETest extends EndToEndTest {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
         balance(alice.token(), alice.walletId()).andExpect(content().string(containsString("\"balance\":15.00")));
         balance(bob.token(), bob.walletId()).andExpect(content().string(containsString("\"balance\":5.00")));
+        statement(alice.token(), alice.walletId()).andExpect(jsonPath("$.length()").value(1));
         statement(bob.token(), bob.walletId()).andExpect(jsonPath("$.length()").value(1));
     }
 }

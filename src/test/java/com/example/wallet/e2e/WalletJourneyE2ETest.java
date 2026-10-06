@@ -29,19 +29,23 @@ class WalletJourneyE2ETest extends EndToEndTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(3))
                 .andExpect(jsonPath("$[0].type").value("TRANSFER_OUT"))
-                .andExpect(jsonPath("$[0].balanceAfter").value(50.00))
                 .andExpect(jsonPath("$[0].counterpartyWalletId").value(bob.walletId()))
                 .andExpect(jsonPath("$[1].type").value("WITHDRAWAL"))
-                .andExpect(jsonPath("$[1].balanceAfter").value(70.00))
                 .andExpect(jsonPath("$[2].type").value("DEPOSIT"))
-                .andExpect(jsonPath("$[2].balanceAfter").value(100.00))
-                .andExpect(jsonPath("$[2].counterpartyWalletId").value(nullValue()));
+                .andExpect(jsonPath("$[2].counterpartyWalletId").value(nullValue()))
+                .andExpect(content().string(containsString(entry("TRANSFER_OUT", "20.00", "50.00"))))
+                .andExpect(content().string(containsString(entry("WITHDRAWAL", "30.00", "70.00"))))
+                .andExpect(content().string(containsString(entry("DEPOSIT", "100.00", "100.00"))));
         statement(bob.token(), bob.walletId())
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].type").value("TRANSFER_IN"))
-                .andExpect(jsonPath("$[0].amount").value(20.00))
-                .andExpect(jsonPath("$[0].balanceAfter").value(20.00))
-                .andExpect(jsonPath("$[0].counterpartyWalletId").value(alice.walletId()));
+                .andExpect(jsonPath("$[0].counterpartyWalletId").value(alice.walletId()))
+                .andExpect(content().string(containsString(entry("TRANSFER_IN", "20.00", "20.00"))));
+    }
+
+    /** Exact JSON text (money keeps two decimals); relies on TransactionResponse field order type, amount, balanceAfter. */
+    private static String entry(String type, String amount, String balanceAfter) {
+        return "\"type\":\"%s\",\"amount\":%s,\"balanceAfter\":%s".formatted(type, amount, balanceAfter);
     }
 }
