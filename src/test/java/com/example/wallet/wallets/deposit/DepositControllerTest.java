@@ -3,8 +3,10 @@ package com.example.wallet.wallets.deposit;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -16,6 +18,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -60,5 +64,30 @@ class DepositControllerTest {
                 .andExpect(jsonPath("$.balanceAfter").value(15.50))
                 .andExpect(jsonPath("$.occurredAt").value("2026-10-05T12:00:00Z"));
         verify(useCase).deposit(new DepositCommand(walletId, userId, new BigDecimal("10.50")));
+    }
+
+    @Test
+    void rejectsRequestWithoutToken() throws Exception {
+        var request = post("/wallets/{id}/deposits", walletId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"amount\":10.00}");
+
+        var result = mvc.perform(request);
+
+        result.andExpect(status().isUnauthorized());
+        verifyNoInteractions(useCase);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{}", "{\"amount\":null}", "{\"amount\":-1.00}", "{\"amount\":0}"})
+    void rejectsMissingOrNonPositiveAmount(String body) throws Exception {
+        var request = deposit(body);
+
+        var result = mvc.perform(request);
+
+        result.andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.errors.amount").exists());
+        verifyNoInteractions(useCase);
     }
 }
