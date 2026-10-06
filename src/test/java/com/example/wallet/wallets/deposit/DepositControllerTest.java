@@ -1,5 +1,6 @@
 package com.example.wallet.wallets.deposit;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
@@ -66,7 +67,9 @@ class DepositControllerTest {
                 .andExpect(jsonPath("$.type").value("DEPOSIT"))
                 .andExpect(jsonPath("$.amount").value(10.50))
                 .andExpect(jsonPath("$.balanceAfter").value(15.50))
-                .andExpect(jsonPath("$.occurredAt").value("2026-10-05T12:00:00Z"));
+                .andExpect(jsonPath("$.occurredAt").value("2026-10-05T12:00:00Z"))
+                .andExpect(content().string(containsString("\"amount\":10.50")))
+                .andExpect(content().string(containsString("\"balanceAfter\":15.50")));
         verify(useCase).deposit(new DepositCommand(walletId, userId, new BigDecimal("10.50")));
     }
 
