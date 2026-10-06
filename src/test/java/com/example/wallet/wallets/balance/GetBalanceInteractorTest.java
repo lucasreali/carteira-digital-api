@@ -1,9 +1,11 @@
 package com.example.wallet.wallets.balance;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import com.example.wallet.wallets.domain.Money;
 import com.example.wallet.wallets.domain.Wallet;
+import com.example.wallet.wallets.domain.WalletNotFoundException;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -23,5 +25,14 @@ class GetBalanceInteractorTest {
 
         assertThat(balance).isEqualTo(Money.of("42.50"));
         assertThat(wallets.saveCalls).isZero();
+    }
+
+    @Test
+    void rejectsUnknownWallet() {
+        var unknownId = UUID.randomUUID();
+
+        var thrown = catchThrowable(() -> useCase.getBalance(new GetBalanceQuery(unknownId, ownerId)));
+
+        assertThat(thrown).isInstanceOf(WalletNotFoundException.class).hasMessageContaining(unknownId.toString());
     }
 }
