@@ -1,6 +1,14 @@
 package com.example.wallet.users.register;
 
-public record RegisterUserRequest(String name, String email, String password) {
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
+public record RegisterUserRequest(
+        @NotBlank @Size(max = 255) String name,
+        @NotBlank @Email @Size(max = 255) String email,
+        // BCrypt only uses the first 72 bytes of the password.
+        @NotBlank @Size(min = 8, max = 72) String password) {
 
     RegisterUserCommand toCommand() {
         return new RegisterUserCommand(name, email, password);

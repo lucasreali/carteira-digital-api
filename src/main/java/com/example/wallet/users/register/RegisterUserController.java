@@ -1,5 +1,6 @@
 package com.example.wallet.users.register;
 
+import jakarta.validation.Valid;
 import java.net.URI;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,7 +17,7 @@ public class RegisterUserController {
     }
 
     @PostMapping("/users")
-    ResponseEntity<RegisterUserResponse> register(@RequestBody RegisterUserRequest request) {
+    ResponseEntity<RegisterUserResponse> register(@Valid @RequestBody RegisterUserRequest request) {
         var user = registerUser.register(request.toCommand());
         return ResponseEntity.created(URI.create("/users/" + user.id())).body(RegisterUserResponse.from(user));
     }
