@@ -14,8 +14,9 @@ public class GetBalanceInteractor implements GetBalanceUseCase {
 
     @Override
     public Money getBalance(GetBalanceQuery query) {
-        return wallets.findById(query.walletId())
-                .orElseThrow(() -> new WalletNotFoundException(query.walletId()))
-                .balance();
+        var wallet = wallets.findById(query.walletId())
+                .orElseThrow(() -> new WalletNotFoundException(query.walletId()));
+        wallet.ensureOwnedBy(query.requesterId());
+        return wallet.balance();
     }
 }
