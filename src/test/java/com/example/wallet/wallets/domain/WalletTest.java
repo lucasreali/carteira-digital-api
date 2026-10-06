@@ -118,6 +118,70 @@ class WalletTest {
     }
 
     @Test
+    void transferMovesMoneyAndRecordsMirroredTransactionsOnBothWallets() {
+        var source = walletWithBalance("100.00");
+        var target = Wallet.rehydrate(UUID.randomUUID(), UUID.randomUUID(), Money.of("5.00"), 1L);
+
+        var out = source.transferTo(target, Money.of("30.00"), NOW);
+
+        assertThat(source.balance()).isEqualTo(Money.of("70.00"));
+        assertThat(target.balance()).isEqualTo(Money.of("35.00"));
+        assertThat(out.walletId()).isEqualTo(source.id());
+        assertThat(out.type()).isEqualTo(TransactionType.TRANSFER_OUT);
+        assertThat(out.amount()).isEqualTo(Money.of("30.00"));
+        assertThat(out.balanceAfter()).isEqualTo(Money.of("70.00"));
+        assertThat(out.counterpartyWalletId()).isEqualTo(target.id());
+        assertThat(out.occurredAt()).isEqualTo(NOW);
+        assertThat(source.pendingTransactions()).containsExactly(out);
+        assertThat(target.pendingTransactions()).singleElement().satisfies(in -> {
+            assertThat(in.id()).isNotEqualTo(out.id());
+            assertThat(in.walletId()).isEqualTo(target.id());
+            assertThat(in.type()).isEqualTo(TransactionType.TRANSFER_IN);
+            assertThat(in.amount()).isEqualTo(Money.of("30.00"));
+            assertThat(in.balanceAfter()).isEqualTo(Money.of("35.00"));
+            assertThat(in.counterpartyWalletId()).isEqualTo(source.id());
+            assertThat(in.occurredAt()).isEqualTo(NOW);
+        });
+    }
+
+    @Test
+    void rejectsTransferAboveBalanceWithoutTouchingEitherWallet() {
+        var source = walletWithBalance("10.00");
+        var target = walletWithBalance("0.00");
+
+        assertThatThrownBy(() -> source.transferTo(target, Money.of("10.01"), NOW))
+                .isInstanceOf(InsufficientFundsException.class);
+        assertThat(source.balance()).isEqualTo(Money.of("10.00"));
+        assertThat(target.balance()).isEqualTo(Money.zero());
+        assertThat(source.pendingTransactions()).isEmpty();
+        assertThat(target.pendingTransactions()).isEmpty();
+    }
+
+    @Test
+    void rejectsTransferToTheSameWallet() {
+        var source = walletWithBalance("10.00");
+        var sameWalletLoadedAgain = Wallet.rehydrate(source.id(), ownerId, Money.of("10.00"), 3L);
+
+        assertThatThrownBy(() -> source.transferTo(sameWalletLoadedAgain, Money.of("1.00"), NOW))
+                .isInstanceOf(SameWalletTransferException.class)
+                .isInstanceOf(BusinessRuleException.class);
+        assertThatThrownBy(() -> source.transferTo(source, Money.of("1.00"), NOW))
+                .isInstanceOf(SameWalletTransferException.class);
+        assertThat(source.balance()).isEqualTo(Money.of("10.00"));
+        assertThat(source.pendingTransactions()).isEmpty();
+    }
+
+    @Test
+    void transferRejectsZeroAmount() {
+        var source = walletWithBalance("10.00");
+        var target = walletWithBalance("0.00");
+
+        assertThatThrownBy(() -> source.transferTo(target, Money.zero(), NOW))
+                .isInstanceOf(InvalidAmountException.class);
+        assertThat(target.pendingTransactions()).isEmpty();
+    }
+
+    @Test
     void pendingTransactionsAreUnmodifiableAndAccumulateInOrder() {
         var wallet = walletWithBalance("0.00");
 
