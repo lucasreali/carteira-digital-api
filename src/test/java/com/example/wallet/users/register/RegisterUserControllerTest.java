@@ -4,6 +4,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
@@ -58,5 +59,32 @@ class RegisterUserControllerTest {
                 .andExpect(content().string(not(containsString("s3cret-pass"))))
                 .andExpect(content().string(not(containsString("secret-hash"))));
         verify(useCase).register(new RegisterUserCommand("Ana", "Ana@Example.com", "s3cret-pass"));
+    }
+
+    @Test
+    void rejectsInvalidPayloadWithFieldErrors() throws Exception {
+        var body = "{\"name\":\" \",\"email\":\"not-an-email\",\"password\":\"short\"}";
+
+        var result = postUsers(body);
+
+        result.andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.errors.name").isNotEmpty())
+                .andExpect(jsonPath("$.errors.email").isNotEmpty())
+                .andExpect(jsonPath("$.errors.password").isNotEmpty());
+        verifyNoInteractions(useCase);
+    }
+
+    @Test
+    void rejectsMissingFieldsAndPasswordAboveBcryptLimit() throws Exception {
+        var body = "{\"password\":\"" + "x".repeat(73) + "\"}";
+
+        var result = postUsers(body);
+
+        result.andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errors.name").isNotEmpty())
+                .andExpect(jsonPath("$.errors.email").isNotEmpty())
+                .andExpect(jsonPath("$.errors.password").isNotEmpty());
+        verifyNoInteractions(useCase);
     }
 }
