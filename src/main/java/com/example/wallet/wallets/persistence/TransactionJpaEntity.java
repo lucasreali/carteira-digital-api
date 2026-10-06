@@ -13,10 +13,11 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
+import org.springframework.data.domain.Persistable;
 
 @Entity
 @Table(name = "wallet_transactions", indexes = @Index(name = "idx_wallet_transactions_wallet_id", columnList = "wallet_id"))
-class TransactionJpaEntity {
+class TransactionJpaEntity implements Persistable<UUID> {
 
     @Id
     private UUID id;
@@ -52,6 +53,17 @@ class TransactionJpaEntity {
         entity.counterpartyWalletId = transaction.counterpartyWalletId();
         entity.occurredAt = transaction.occurredAt();
         return entity;
+    }
+
+    @Override
+    public UUID getId() {
+        return id;
+    }
+
+    /** The ledger is append-only and ids are assigned by the domain: always persist, never merge. */
+    @Override
+    public boolean isNew() {
+        return true;
     }
 
     Transaction toDomain() {

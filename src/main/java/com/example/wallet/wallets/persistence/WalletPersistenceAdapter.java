@@ -4,6 +4,8 @@ import com.example.wallet.wallets.domain.Transaction;
 import com.example.wallet.wallets.domain.TransactionHistory;
 import com.example.wallet.wallets.domain.Wallet;
 import com.example.wallet.wallets.domain.WalletRepository;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -33,11 +35,15 @@ class WalletPersistenceAdapter implements WalletRepository, TransactionHistory {
         return wallets.existsByOwnerId(ownerId);
     }
 
-    /** Version null inserts; otherwise merge checks the version and fails on a stale wallet. */
+    /**
+     * Version null inserts; otherwise merge checks the version and fails on a stale wallet. Wallets are written in id
+     * order so concurrent opposite transfers (A to B, B to A) lock rows in the same order and cannot deadlock.
+     */
     @Override
     @Transactional
     public void save(Wallet... toSave) {
-        for (Wallet wallet : toSave) {
+        var ordered = Arrays.stream(toSave).sorted(Comparator.comparing(Wallet::id)).toList();
+        for (Wallet wallet : ordered) {
             wallets.save(WalletJpaEntity.from(wallet));
             transactions.saveAll(wallet.pendingTransactions().stream().map(TransactionJpaEntity::from).toList());
         }

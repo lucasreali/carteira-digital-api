@@ -9,6 +9,7 @@ import com.example.wallet.wallets.domain.TransactionType;
 import com.example.wallet.wallets.domain.Wallet;
 import java.time.Instant;
 import java.util.UUID;
+import org.hibernate.SessionFactory;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
@@ -17,7 +18,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 
-@DataJpaTest
+@DataJpaTest(properties = "spring.jpa.properties.hibernate.generate_statistics=true")
 @Import(WalletPersistenceAdapter.class)
 class WalletPersistenceAdapterTest {
 
@@ -128,6 +129,24 @@ class WalletPersistenceAdapterTest {
                     entityManager.flush();
                 })
                 .isInstanceOf(OptimisticLockingFailureException.class);
+    }
+
+    @Test
+    void appendsTransactionsWithPlainInsertsWithoutSelectingThemFirst() {
+        var wallet = Wallet.open(UUID.randomUUID());
+        wallet.deposit(Money.of("1.00"), T1);
+        wallet.deposit(Money.of("2.00"), T2);
+        var statistics = entityManager.getEntityManager()
+                .getEntityManagerFactory()
+                .unwrap(SessionFactory.class)
+                .getStatistics();
+        statistics.clear();
+
+        adapter.save(wallet);
+        entityManager.flush();
+
+        // one INSERT for the wallet and one per transaction, no SELECT
+        assertThat(statistics.getPrepareStatementCount()).isEqualTo(3);
     }
 
     @Test
