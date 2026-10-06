@@ -1,6 +1,7 @@
 package com.example.wallet.shared.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -34,5 +35,17 @@ class JwtRoundTripTest {
         assertThat(hash).isNotEqualTo("s3cret-password");
         assertThat(encoder.matches("s3cret-password", hash)).isTrue();
         assertThat(encoder.matches("wrong-password", hash)).isFalse();
+    }
+
+    @Test
+    void rejectsSecretShorterThan32BytesWhenCreatingJwtBeans() {
+        var weak = new JwtProperties("only-31-bytes-long-secret-12345", Duration.ofHours(1));
+
+        assertThatThrownBy(() -> config.jwtEncoder(weak))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("at least 32 bytes");
+        assertThatThrownBy(() -> config.jwtDecoder(weak))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("at least 32 bytes");
     }
 }
