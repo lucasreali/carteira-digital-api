@@ -34,6 +34,12 @@ public final class Wallet {
         return new Wallet(id, ownerId, balance, version);
     }
 
+    public void ensureOwnedBy(UUID userId) {
+        if (!ownerId.equals(userId)) {
+            throw new WalletAccessDeniedException();
+        }
+    }
+
     public Transaction deposit(Money amount, Instant occurredAt) {
         amount.requirePositive();
         balance = balance.plus(amount);
