@@ -28,4 +28,14 @@ class GetStatementInteractorTest {
 
         assertThat(statement).containsExactly(newer, older);
     }
+
+    @Test
+    void returnsEmptyListWhenWalletHasNoTransactions() {
+        var wallet = Wallet.open(ownerId);
+        wallets.save(wallet);
+
+        var statement = useCase.getStatement(new GetStatementQuery(wallet.id(), ownerId));
+
+        assertThat(statement).isEmpty();
+    }
 }
