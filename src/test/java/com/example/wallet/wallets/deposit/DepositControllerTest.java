@@ -11,9 +11,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.example.wallet.shared.security.SecurityConfig;
+import com.example.wallet.wallets.domain.InvalidAmountException;
 import com.example.wallet.wallets.domain.Money;
 import com.example.wallet.wallets.domain.Transaction;
 import com.example.wallet.wallets.domain.TransactionType;
+import com.example.wallet.wallets.domain.WalletAccessDeniedException;
+import com.example.wallet.wallets.domain.WalletNotFoundException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
@@ -23,6 +26,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -89,5 +93,37 @@ class DepositControllerTest {
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.errors.amount").exists());
         verifyNoInteractions(useCase);
+    }
+
+    @Test
+    void mapsUnknownWalletToNotFound() throws Exception {
+        given(useCase.deposit(any())).willThrow(new WalletNotFoundException(walletId));
+
+        var result = mvc.perform(deposit("{\"amount\":10.00}"));
+
+        result.andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.detail").value("Wallet " + walletId + " was not found."));
+    }
+
+    @Test
+    void mapsWalletOfAnotherOwnerToForbidden() throws Exception {
+        given(useCase.deposit(any())).willThrow(new WalletAccessDeniedException());
+
+        var result = mvc.perform(deposit("{\"amount\":10.00}"));
+
+        result.andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON));
+    }
+
+    @Test
+    void mapsInvalidAmountToUnprocessableContent() throws Exception {
+        given(useCase.deposit(any())).willThrow(new InvalidAmountException("Amount must have at most 2 decimal places."));
+
+        var result = mvc.perform(deposit("{\"amount\":10.001}"));
+
+        result.andExpect(status().is(HttpStatus.UNPROCESSABLE_CONTENT.value()))
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.detail").value("Amount must have at most 2 decimal places."));
     }
 }
