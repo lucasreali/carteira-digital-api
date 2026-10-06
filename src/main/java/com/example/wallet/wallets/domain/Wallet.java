@@ -45,6 +45,21 @@ public final class Wallet {
         return record(TransactionType.WITHDRAWAL, amount, null, occurredAt);
     }
 
+    /**
+     * Moves money to {@code target}. Records TRANSFER_OUT here and TRANSFER_IN on the target (each pointing at the
+     * other wallet) and returns the TRANSFER_OUT. Both wallets must then be saved together.
+     */
+    public Transaction transferTo(Wallet target, Money amount, Instant occurredAt) {
+        if (target.id.equals(id)) {
+            throw new SameWalletTransferException();
+        }
+        var targetBalance = target.balance.plus(amount); // may throw: compute before touching the source
+        debit(amount);
+        target.balance = targetBalance;
+        target.record(TransactionType.TRANSFER_IN, amount, id, occurredAt);
+        return record(TransactionType.TRANSFER_OUT, amount, target.id, occurredAt);
+    }
+
     private void debit(Money amount) {
         amount.requirePositive();
         if (amount.isGreaterThan(balance)) {
