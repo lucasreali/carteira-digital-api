@@ -21,7 +21,7 @@ API REST de uma carteira digital, desenvolvida para a disciplina de Cloud da PUC
 | Build | Gradle 9.7.1 com Kotlin DSL |
 | Segurança | Spring Security como OAuth2 Resource Server, JWT HS256 (Nimbus), senhas com BCrypt |
 | Persistência | Spring Data JPA (Hibernate) + H2 em memória |
-| Testes | JUnit 5, AssertJ, Mockito, `@WebMvcTest`, `@DataJpaTest`, `@SpringBootTest` |
+| Testes | JUnit 5, AssertJ, Mockito, `@WebMvcTest`, `@DataJpaTest`, `@SpringBootTest`, ArchUnit 1.5.1 |
 
 ```bash
 sh ./gradlew test       # suíte completa
@@ -181,6 +181,41 @@ Duplicação foi tratada caso a caso:
 - Wiring sem anotações no núcleo: interactors são classes Java comuns, instanciadas por `@Bean` em `RegisterUserConfig`, `LoginConfig`, `CreateWalletConfig`, `GetBalanceConfig`, `DepositConfig`, `WithdrawConfig`, `TransferConfig`, `GetStatementConfig`.
 - Transações dentro do adapter: `@Transactional` está só em `WalletPersistenceAdapter` (o `save(Wallet...)` grava carteiras e transações pendentes atomicamente). O interactor de transferência chama `wallets.save(source, target)` uma vez e não sabe que existe transação de banco.
 
+### Testes de arquitetura (ArchUnit)
+
+As duas arquiteturas acima não dependem só de disciplina: `src/test/java/com/example/wallet/architecture/` as verifica a cada `./gradlew test` com ArchUnit, analisando o bytecode de produção (`ImportOption.DoNotIncludeTests`). Uma regra que não encontre nenhuma classe falha (padrão do ArchUnit), então nenhuma passa no vazio.
+
+`Architecture` define o vocabulário comum: quais classes formam cada camada (Entities = pacotes `..domain..`; Use Cases = `*UseCase`, `*Interactor`, `*Command`, `*Query`, `TokenIssuer` e `AccessToken` dentro de um slice; Frameworks & Drivers = `@SpringBootApplication`, `@Configuration` e `shared.security`; Interface Adapters = todo o resto) e como o código é cortado em slices (`<módulo>.<slice>`, exceto os pacotes de suporte `domain`, `persistence`, `security` e `web`).
+
+| Classe | Regra | O que garante |
+|---|---|---|
+| `CleanArchitectureTest` | `dependencyRulePointsInwards` | `layeredArchitecture()` com as quatro camadas e `ensureAllClassesAreContainedInArchitecture()`: dependências só apontam para dentro |
+| | `entitiesDependOnlyOnTheDomainAndTheJdk` | `..domain..` só depende de `..domain..` e `java..` |
+| | `useCasesAreFreeOfFrameworks` | Use cases não importam Spring, Jakarta, Hibernate nem Jackson |
+| | `interactorsDependOnPortsNotOnAdapters` | Interactors não enxergam `persistence`, `security`, `web` nem beans `@Repository`/`@Component` |
+| | `interactorsImplementTheirInputPort` | `XxxInteractor` implementa `XxxUseCase` do mesmo pacote e não é `@Component`/`@Service` |
+| | `outputPortsAreInterfaces` | `*Repository` do domínio, `PasswordHasher`, `TransactionHistory` e `TokenIssuer` são interfaces |
+| | `controllersTalkToInputPortsOnly` | Controllers não usam interactors, `persistence` nem repositórios Spring Data |
+| | `controllersDoNotExposeEntities` | Nenhum método de controller devolve um tipo de `..domain..` |
+| | `jpaEntitiesStayInsideThePersistenceAdapter` | `@Entity` só em `..persistence..` e package-private |
+| | `springDataRepositoriesStayInsideThePersistenceAdapter` | Interfaces Spring Data só em `..persistence..` e package-private |
+| | `transactionsAreAnAdapterConcern`, `noTransactionalMethodsOutsidePersistence` | `@Transactional` só no adapter de persistência |
+| | `domainErrorsAreDomainExceptions` | Toda exceção do domínio estende `DomainException` (mapeada pelo `GlobalExceptionHandler`) |
+| `VerticalSliceArchitectureTest` | `slicesAreIndependentOfEachOther` | Nenhum slice importa classe de outro slice |
+| | `everySliceIsACompleteUseCase` | Cada slice tem exatamente um `*UseCase`, um `*Interactor`, um `@Configuration` e ao menos um `@RestController` |
+| | `usersModuleDoesNotDependOnWallets`, `walletsModuleDoesNotDependOnUsers` | Os módulos `users` e `wallets` são independentes |
+| | `sharedKernelDoesNotDependOnFeatures` | `shared` não conhece nenhum módulo |
+| | `moduleSupportCodeDoesNotDependOnSlices` | `domain`, `persistence`, `web` e `security` não dependem dos slices |
+| | `controllersLiveInTheirSlice` | Todo `@RestController` mora num slice e termina em `Controller` |
+| | `sliceWiringIsPackagePrivate` | O `@Configuration` de cada slice é package-private e termina em `Config` |
+| | `packagesAreFreeOfCycles` | Nenhum ciclo entre pacotes |
+
+As regras foram validadas também no sentido negativo: um controller temporário em `wallets/deposit` que usava `GetBalanceInteractor`, devolvia `Wallet` e tinha um método `@Transactional` fez falhar `controllersTalkToInputPortsOnly`, `controllersDoNotExposeEntities`, `noTransactionalMethodsOutsidePersistence` e `slicesAreIndependentOfEachOther`; a classe foi removida em seguida.
+
+```bash
+sh ./gradlew test --tests 'com.example.wallet.architecture.*'   # só as regras de arquitetura
+```
+
 ### SOLID
 
 | Princípio | Exemplo concreto |
@@ -220,7 +255,7 @@ aa76034 feat(wallets-withdraw): withdraw from wallet and persist transaction
 - Correções vindas de revisão também seguiram Red/Green: `ecba77c test(shared-security): reject jwt secrets shorter than 32 bytes` seguido de `5243ea0 feat(shared-security): fail fast on jwt secrets shorter than 32 bytes`.
 - Números do branch antes deste README (sem merges): 153 commits, sendo 82 `test`, 65 `feat`, 3 `fix`, 3 `chore` e nenhum `refactor`.
 
-Suíte final (`sh ./gradlew cleanTest test`, contada nos XML de `build/test-results`): 179 testes em 37 classes, 0 falhas, 0 ignorados.
+Suíte final (`sh ./gradlew cleanTest test`, contada nos XML de `build/test-results`): 201 testes em 39 classes, 0 falhas, 0 ignorados.
 
 | Camada | Classes | Testes |
 |---|---|---|
@@ -230,7 +265,8 @@ Suíte final (`sh ./gradlew cleanTest test`, contada nos XML de `build/test-resu
 | Persistência (`@DataJpaTest` + H2) | `JpaUserRepositoryTest`, `WalletPersistenceAdapterTest` | 11 |
 | Web (`@WebMvcTest`) | 8 `*ControllerTest`, `GlobalExceptionHandlerTest`, `SecurityConfigTest` | 57 |
 | Contexto completo (`@SpringBootTest`) | `WalletApplicationTests`, `WalletJourneyE2ETest`, `ErrorContractE2ETest` | 15 |
-| **Total** | **37** | **179** |
+| Arquitetura (ArchUnit) | `CleanArchitectureTest`, `VerticalSliceArchitectureTest` | 22 |
+| **Total** | **39** | **201** |
 
 Os testes E2E sobem o contexto completo (filtros do Spring Security, JPA, H2) e chamam a API por MockMvc sem nenhum mock: o token vem de um `POST /auth/login` real e é reenviado no header `Authorization`.
 
